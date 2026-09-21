@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ReconFlow — Excel Payment Reconciliation</title>
+  <style>
+    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:#e8edf7;background:#07111f}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#14213d 0,#07111f 48%);min-height:100vh}.wrap{max-width:1100px;margin:auto;padding:48px 20px}.hero{display:flex;justify-content:space-between;gap:32px;align-items:end;margin-bottom:30px}.badge{display:inline-block;border:1px solid #29496e;background:#0c1b2f;border-radius:999px;padding:7px 11px;color:#8ec5ff;font-size:13px}h1{font-size:48px;line-height:1.02;margin:14px 0 12px;letter-spacing:-2px}.sub{color:#99a9bd;max-width:680px;font-size:17px}.panel{background:rgba(10,24,42,.88);border:1px solid #1c3654;border-radius:20px;padding:24px;box-shadow:0 20px 60px #0006}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.drop{border:1px dashed #41658b;border-radius:14px;padding:22px;background:#08182a}.drop strong{display:block;margin-bottom:8px}.drop small{color:#8294a9}input[type=file]{width:100%;margin-top:14px;color:#aab7c7}button{border:0;background:#3b82f6;color:white;font-weight:700;padding:13px 18px;border-radius:11px;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}.actions{display:flex;gap:10px;margin-top:18px;align-items:center}.status{color:#9fb0c4}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:22px}.card{background:#08182a;border:1px solid #183653;border-radius:14px;padding:16px}.card .n{font-size:25px;font-weight:800}.card .l{color:#8fa0b5;font-size:12px;margin-top:4px}table{width:100%;border-collapse:collapse;margin-top:22px;font-size:14px}th,td{padding:11px 8px;border-bottom:1px solid #17324d;text-align:left}th{color:#91a5bd;font-weight:600}.good{color:#7ee787}.bad{color:#ff8f8f}.dup{color:#ffd479}@media(max-width:800px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:1fr 1fr}.hero{display:block}h1{font-size:38px}.cards .card:last-child{grid-column:1/-1}}
+  </style>
+</head>
+<body><main class="wrap">
+  <section class="hero"><div><span class="badge">Validation MVP</span><h1>Reconcile payments without spreadsheet chaos.</h1><p class="sub">Upload invoice and payment files. ReconFlow matches transactions, flags duplicates and unmatched rows, calculates variance, and exports the result.</p></div></section>
+  <section class="panel">
+    <div class="grid">
+      <label class="drop"><strong>1. Invoice file</strong><small>.xlsx or .csv with Reference + Amount columns</small><input id="invoice" type="file" accept=".xlsx,.csv"></label>
+      <label class="drop"><strong>2. Payment file</strong><small>.xlsx or .csv with Reference + Amount columns</small><input id="payment" type="file" accept=".xlsx,.csv"></label>
+    </div>
+    <div class="actions"><button id="run">Run reconciliation</button><button id="export" style="display:none;background:#153354">Export Excel</button><span id="status" class="status"></span></div>
+    <div id="cards" class="cards" style="display:none"></div>
+    <div style="overflow:auto"><table id="results" style="display:none"><thead><tr><th>Status</th><th>Invoice Ref</th><th>Payment Ref</th><th>Invoice</th><th>Payment</th><th>Variance</th></tr></thead><tbody></tbody></table></div>
+  </section>
+</main><script>
+const run=document.querySelector('#run'), statusEl=document.querySelector('#status'), cards=document.querySelector('#cards'), table=document.querySelector('#results'), tbody=table.querySelector('tbody'), exportBtn=document.querySelector('#export');let runId=null;
+run.onclick=async()=>{const i=document.querySelector('#invoice').files[0],p=document.querySelector('#payment').files[0];if(!i||!p){statusEl.textContent='Choose both files.';return;}run.disabled=true;statusEl.textContent='Reconciling…';cards.style.display='none';table.style.display='none';exportBtn.style.display='none';try{const fd=new FormData();fd.append('invoiceFile',i);fd.append('paymentFile',p);const res=await fetch('/api/reconcile',{method:'POST',body:fd});const data=await res.json();if(!res.ok)throw new Error(data.error||'Reconciliation failed');runId=data.runId;const s=data.summary;cards.innerHTML=[['Matched',s.matched],['Unmatched invoices',s.unmatchedInvoices],['Unmatched payments',s.unmatchedPayments],['Duplicates',s.duplicates],['Net variance',Number(s.variance).toFixed(2)]].map(x=>`<div class="card"><div class="n">${x[1]}</div><div class="l">${x[0]}</div></div>`).join('');tbody.innerHTML=data.rows.map(r=>`<tr><td class="${r.status==='Matched'?'good':r.status==='Duplicate'?'dup':'bad'}">${r.status}</td><td>${r.invoiceReference??''}</td><td>${r.paymentReference??''}</td><td>${Number(r.invoiceAmount).toFixed(2)}</td><td>${Number(r.paymentAmount).toFixed(2)}</td><td>${Number(r.variance).toFixed(2)}</td></tr>`).join('');cards.style.display='grid';table.style.display='table';exportBtn.style.display='inline-block';statusEl.textContent=`Processed ${s.invoiceCount} invoices and ${s.paymentCount} payments.`;}catch(e){statusEl.textContent=e.message;}finally{run.disabled=false;}};
+exportBtn.onclick=()=>{if(runId)location.href=`/api/export/${runId}`};
+</script></body></html>
